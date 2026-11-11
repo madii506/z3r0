@@ -1,0 +1,6 @@
+{
+  "functions": { "api/z3r0.js": { "maxDuration": 30 } },
+  "headers": [
+    { "source": "/assets/(.*)", "headers": [{ "key": "cache-control", "value": "public, max-age=600" }] }
+  ]
+}
