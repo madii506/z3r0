@@ -10,13 +10,14 @@
   const cv = el.querySelector('canvas'), g = cv.getContext('2d'), B58 = FX.B58, SCR = '░▒▓█', GL = FX.GLY, RAMP = ' .:-=+*#%@';
   const rnd = s => s[Math.floor(Math.random() * s.length)], ease = k => 1 - Math.pow(1 - k, 3), eio = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2, clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   let W, H, D, fs, cw, ch, cols, rows, grid, alpha, V, word = [], t0 = 0, done = false, raf = 0;
+  let SC = .7; // how big the spinning zero gets: smaller on tall phone screens
   const T = { sweep: 1.7, spin: 2.8, morph: 5.2, hold: 6.4, dive: 7.1, end: 8.3 };
   // ---------------------------------------------------------------- layout
   function size() { D = Math.min(devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight; cv.width = W * D; cv.height = H * D; g.setTransform(D, 0, 0, D, 0, 0);
-    fs = clamp(Math.round(W / 118), 10, 15); cw = fs * .6; ch = fs * 1.18; cols = Math.ceil(W / cw); rows = Math.ceil(H / ch);
+    fs = W < 700 ? 8 : clamp(Math.round(W / 118), 10, 15); SC = .7 * Math.min(1, (W / H) / .8); cw = fs * .6; ch = fs * 1.18; cols = Math.ceil(W / cw); rows = Math.ceil(H / ch);
     grid = new Array(cols * rows).fill(' '); alpha = new Float32Array(cols * rows); V = new Float32Array(cols * rows); for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) { const dx = (x / cols - .5) * 2, dy = (y / rows - .5) * 2, r = Math.sqrt(dx * dx * .8 + dy * dy); V[y * cols + x] = clamp(1.15 - r * .62, .18, 1); } buildWord(); if (!lines.length) for (let i = 0; i < Math.floor(rows * .72); i++) { const L = newLine(); L.at -= 20000; L.a *= .7; lines.push(L); } }
   // the wordmark, sampled from glyphs drawn off-screen: z3r + a slashed zero
-  function buildWord() { const ww = Math.min(W * .74, 1180), wh = ww / 2.55, o = document.createElement('canvas'), oc = o.getContext('2d'); o.width = Math.ceil(ww); o.height = Math.ceil(wh); oc.fillStyle = '#000'; oc.fillRect(0, 0, o.width, o.height); oc.fillStyle = '#fff';
+  function buildWord() { const ww = W < 700 ? W * .66 : Math.min(W * .46, 700), wh = ww / 2.55, o = document.createElement('canvas'), oc = o.getContext('2d'); o.width = Math.ceil(ww); o.height = Math.ceil(wh); oc.fillStyle = '#000'; oc.fillRect(0, 0, o.width, o.height); oc.fillStyle = '#fff';
     const fh = wh * 1.02; oc.font = `700 ${fh}px ID, Inter, sans-serif`; oc.textBaseline = 'middle'; const tw = oc.measureText('z3r').width, ow = fh * .6, gap = fh * .03, total = tw + gap + ow, x0 = (o.width - total) / 2; oc.fillText('z3r', x0, o.height * .53);
     const zx = x0 + tw + gap + ow / 2, zy = o.height * .515, rx = ow * .38, ry = fh * .36, sw = fh * .12; oc.lineWidth = sw; oc.strokeStyle = '#fff'; oc.beginPath(); oc.ellipse(zx, zy, rx, ry, 0, 0, Math.PI * 2); oc.stroke();
     oc.beginPath(); oc.moveTo(zx - rx * .82, zy + ry * .82); oc.lineTo(zx + rx * .82, zy - ry * .82); oc.lineWidth = sw * .9; oc.stroke();
@@ -57,7 +58,7 @@
       if (Math.random() < .5) SND.tick(.03, 1200 + Math.random() * 2000); return; }
     // the zero rises out of the noise and spins
     if (t < T.morph) { if (!spun) { spun = true; SND.thump(.3); SND.whoosh(2.8, .06, true); SND.droneLevel(.1, 1.5); }
-      const k = (t - T.spin) / (T.morph - T.spin), rise = ease(clamp(k / .28, 0, 1)), ay = t * 2.6 + Math.sin(t * .7) * .5, ax = .32 + Math.sin(t * 1.3) * .22, Z = FX.zero3d(cols, rows, ay, ax, { scale: (.25 + .87 * rise) + .05 * Math.sin(t * 2), aspect: ch / cw, fine: true });
+      const k = (t - T.spin) / (T.morph - T.spin), rise = ease(clamp(k / .28, 0, 1)), ay = t * 2.6 + Math.sin(t * .7) * .5, ax = .32 + Math.sin(t * 1.3) * .22, Z = FX.zero3d(cols, rows, ay, ax, { scale: (.18 + (SC - .18) * rise) + .03 * Math.sin(t * 2), aspect: ch / cw, fine: true });
       for (let j = 0; j < alpha.length; j++) alpha[j] *= .9; const fade = clamp(k / .12, 0, 1), A = new Float32Array(alpha.length), Gc = new Array(alpha.length);
       for (let j = 0; j < Gc.length; j++) { if (Z.out[j] !== ' ' && Math.random() < fade) { Gc[j] = Math.random() < .008 ? rnd(GL) : Z.out[j]; A[j] = .2 + Z.lum[j] * .8; } else { Gc[j] = grid[j]; A[j] = alpha[j] * .8; } }
       paintGrid(Gc, A, true, .62); if (now > nextG) { nextG = now + 1100 + Math.random() * 1200; glitch(1); SND.tick(.05, 900); SND.tick(.03, 7000); } return; }
@@ -66,7 +67,7 @@
       const k = clamp((t - T.morph) / (T.hold - T.morph), 0, 1), e = eio(k), held = t >= T.hold;
       if (!landed && held) { landed = true; SND.thump(.36); }
       g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
-      if (k < 1) { const base = rows * .72 * 2 * 2.73 / 6, target = word.oh / base, sc = 1.12 + (target - 1.12) * e, spinLeft = (1 - e) * 3.2, Z = FX.zero3d(cols, rows, 6.2832 * 3 + spinLeft, .32 * (1 - e), { scale: sc, aspect: ch / cw, fine: e < .5, cx: cols / 2 + (word.gx - cols / 2) * e, cy: rows / 2 + (word.gy - rows / 2) * e }), A = new Float32Array(Z.lum.length);
+      if (k < 1) { const base = rows * .72 * 2 * 2.73 / 6, target = word.oh / base, sc = SC + (target - SC) * e, spinLeft = (1 - e) * 3.2, Z = FX.zero3d(cols, rows, 6.2832 * 3 + spinLeft, .32 * (1 - e), { scale: sc, aspect: ch / cw, fine: e < .5, cx: cols / 2 + (word.gx - cols / 2) * e, cy: rows / 2 + (word.gy - rows / 2) * e }), A = new Float32Array(Z.lum.length);
         for (let j = 0; j < A.length; j++) A[j] = Z.out[j] === ' ' ? 0 : (.22 + Z.lum[j] * .78) * (1 - Math.max(0, (k - .7) / .3)); paintGrid(Z.out, A, false); }
       g.font = `400 ${fs}px JB, monospace`; g.textBaseline = 'top';
       for (const p of word) { if (p.z && k < .7) continue; const kk = clamp((k * 1.45 - p.dl * .45), 0, 1), ee = eio(kk), arc = Math.sin(ee * Math.PI) * p.arc, x = (p.sx + (p.tx - p.sx) * ee) * cw, y = (p.sy + (p.ty - p.sy) * ee + arc) * ch;
